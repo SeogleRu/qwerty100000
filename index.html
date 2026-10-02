@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>qwerty100000 - Мобильная Дуэль на Двоих</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: sans-serif;
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Стили для сенсорных зон управления */
+        .joystick-zone {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+        }
+        .stick {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            transition: transform 0.05s linear;
+        }
+        .shoot-btn {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 50, 50, 0.4);
+            border: 2px solid rgba(255, 50, 50, 0.6);
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+        }
+        /* Управление для Игрока 1 (Слева) */
+        #joy1 { left: 40px; bottom: 40px; }
+        #fire1 { left: 180px; bottom: 60px; background: rgba(50, 150, 255, 0.4); border-color: rgba(50, 150, 255, 0.6); }
+
+        /* Управление для Игрока 2 (Справа, перевернуто для удобства) */
+        #joy2 { right: 40px; top: 40px; }
+        #fire2 { right: 180px; top: 60px; }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+
+    <!-- Управление Игрока 1 (Синий) -->
+    <div id="joy1" class="joystick-zone"><div class="stick"></div></div>
+    <div id="fire1" class="shoot-btn">огонь</div>
+
+    <!-- Управление Игрока 2 (Красный) -->
+    <div id="joy2" class="joystick-zone"><div class="stick"></div></div>
+    <div id="fire2" class="shoot-btn">огонь</div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Адаптация под размеры экрана
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Класс игрока
+        class Player {
+            constructor(x, y, color, angle) {
+                this.x = x;
+                this.y = y;
+                this.radius = 20;
+                this.color = color;
+                this.speed = 4;
+                this.angle = angle;
+                this.hp = 100;
+                this.moveDir = { x: 0, y: 0 };
+                this.lastShot = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Тело танка/игрока
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+
+                // Дуло (направление выстрела)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, -4, this.radius + 10, 8);
+
+                ctx.restore();
+
+                // Полоска здоровья
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(this.x - 25, this.y - 35, 50, 6);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(this.x - 25, this.y - 35, (this.hp / 100) * 50, 6);
+            }
+
+            update() {
+                this.x += this.moveDir.x * this.speed;
+                this.y += this.moveDir.y * this.speed;
+
+                // Ограничение движения границами экрана
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+
+                // Поворот персонажа в сторону движения
+                if (this.moveDir.x !== 0 || this.moveDir.y !== 0) {
+                    this.angle = Math.atan2(this.moveDir.y, this.moveDir.x);
+                }
+            }
+        }
+
+        // Класс пули
+        class Bullet {
+            constructor(x, y, angle, color) {
+                this.x = x;
+                this.y = y;
+                this.speed = 7;
+                this.dx = Math.cos(angle) * this.speed;
+                this.dy = Math.sin(angle) * this.speed;
+                this.radius = 5;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            update() {
+                this.x += this.dx;
+                this.y += this.dy;
+            }
+        }
+
+        // Инициализация игроков
+        const p1 = new Player(100, canvas.height / 2, '#3296ff', 0);
+        const p2 = new Player(canvas.width - 100, canvas.height / 2, '#ff3232', Math.PI);
+        const bullets = [];
+
+        // Функция стрельбы
+        function shoot(player) {
+            const now = Date.now();
+            if (now - player.lastShot > 300 && player.hp > 0) { // Перезарядка 300мс
+                bullets.push(new Bullet(player.x + Math.cos(player.angle)*25, player.y + Math.sin(player.angle)*25, player.angle, player.color));
+                player.lastShot = now;
+            }
+        }
+
+        // Настройка тач-джойстиков
+        function setupJoystick(joyId, player) {
+            const joy = document.getElementById(joyId);
+            const stick = joy.querySelector('.stick');
+            const rect = joy.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+
+            function handleTouch(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const joyRect = joy.getBoundingClientRect();
+                let touchX = touch.clientX - joyRect.left - centerX;
+                let touchY = touch.clientY - joyRect.top - centerY;
+
+                const distance = Math.min(centerX, Math.sqrt(touchX*touchX + touchY*touchY));
+                const angle = Math.atan2(touchY, touchX);
+
+                const moveX = (distance / centerX) * Math.cos(angle);
+                const moveY = (distance / centerX) * Math.sin(angle);
+
+                stick.style.transform = `translate(${moveX * 30}px, ${moveY * 30}px)`;
+                player.moveDir = { x: moveX, y: moveY };
+            }
+
+            joy.addEventListener('touchstart', handleTouch);
+            joy.addEventListener('touchmove', handleTouch);
+            joy.addEventListener('touchend', () => {
+                stick.style.transform = 'translate(0px, 0px)';
+                player.moveDir = { x: 0, y: 0 };
+            });
+        }
+
+        // Подключаем управление
+        setupJoystick('joy1', p1);
+        setupJoystick('joy2', p2);
+
+        document.getElementById('fire1').addEventListener('touchstart', (e) => { e.preventDefault(); shoot(p1); });
+        document.getElementById('fire2').addEventListener('touchstart', (e) => { e.preventDefault(); shoot(p2); });
+
+        // Проверка столкновений окружностей
+        function getDistance(x1, y1, x2, y2) {
+            return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+        }
+
+        // Главный игровой цикл
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Обновление и отрисовка игроков
+            if (p1.hp > 0) { p1.update(); p1.draw(); }
+            if (p2.hp > 0) { p2.update(); p2.draw(); }
+
+            // Логика пуль
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.update();
+                b.draw();
+
+                // Проверка попадания пули Синего в Красного
+                if (b.color === p1.color && p2.hp > 0 && getDistance(b.x, b.y, p2.x, p2.y) < p2.radius + b.radius) {
+                    p2.hp -= 10;
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Проверка попадания пули Красного в Синего
+                if (b.color === p2.color && p1.hp > 0 && getDistance(b.x, b.y, p1.x, p1.y) < p1.radius + b.radius) {
+                    p1.hp -= 10;
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Удаление пуль за экраном
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Конец игры
+            if (p1.hp <= 0 || p2.hp <= 0) {
+                ctx.fillStyle = 'white';
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                const winner = p1.hp <= 0 ? 'Красный Игрок' : 'Синий Игрок';
+                ctx.fillText(`${winner} Победил!`, canvas.width / 2, canvas.height / 2);
+                ctx.font = '20px Arial';
+                ctx.fillText('Обновите страницу для перезапуска', canvas.width / 2, canvas.height / 2 + 40);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
