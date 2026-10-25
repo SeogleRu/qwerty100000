@@ -1,284 +1,913 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>qwerty100000 - Мобильная Дуэль на Двоих</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #1a1a1a;
-            font-family: sans-serif;
-        }
-        #canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        /* Стили для сенсорных зон управления */
-        .joystick-zone {
-            position: absolute;
-            width: 120px;
-            height: 120px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: none;
-        }
-        .stick {
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            transition: transform 0.05s linear;
-        }
-        .shoot-btn {
-            position: absolute;
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 50, 50, 0.4);
-            border: 2px solid rgba(255, 50, 50, 0.6);
-            border-radius: 50%;
-            color: white;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: none;
-        }
-        /* Управление для Игрока 1 (Слева) */
-        #joy1 { left: 40px; bottom: 40px; }
-        #fire1 { left: 180px; bottom: 60px; background: rgba(50, 150, 255, 0.4); border-color: rgba(50, 150, 255, 0.6); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1a1f">
+<title>qwerty100000 - танковая дуэль для двоих игроков</title>
+<style>
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
 
-        /* Управление для Игрока 2 (Справа, перевернуто для удобства) */
-        #joy2 { right: 40px; top: 40px; }
-        #fire2 { right: 180px; top: 60px; }
-    </style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0e1a1f;
+    font-family: -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+    position: fixed;
+    overscroll-behavior: none;
+  }
+
+  #game {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Верхняя панель со здоровьем */
+  .hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .hp-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(8, 18, 24, 0.75);
+    padding: 6px 14px;
+    border-radius: 30px;
+    border: 1.5px solid #3f7183;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    font-weight: 700;
+    font-size: 15px;
+    color: #e9f6ff;
+  }
+
+  .hp-bar {
+    width: 90px;
+    height: 10px;
+    background: #0a1419;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #2b4b58;
+  }
+
+  .hp-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 10px;
+    transition: width 0.15s ease-out;
+  }
+
+  .hp-fill.p1 { background: linear-gradient(90deg, #b33e1a, #f9734b); }
+  .hp-fill.p2 { background: linear-gradient(90deg, #1c5fa8, #4aa3ff); }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #20323c;
+    touch-action: none;
+  }
+
+  /* ---------- УПРАВЛЕНИЕ ---------- */
+  .controls-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  /* Каждая зона управления (левая/правая половина) */
+  .control-zone {
+    position: absolute;
+    top: 56px;
+    bottom: 0;
+    width: 50%;
+    pointer-events: auto;
+  }
+
+  .control-zone.left  { left: 0; }
+  .control-zone.right { right: 0; }
+
+  /* Джойстик */
+  .joystick {
+    position: absolute;
+    bottom: 22px;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(70, 110, 130, 0.22), rgba(20, 40, 50, 0.35));
+    border: 2px solid rgba(120, 180, 210, 0.35);
+    touch-action: none;
+  }
+
+  .control-zone.left  .joystick { left: 18px; }
+  .control-zone.right .joystick { right: 18px; }
+
+  .joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 58px;
+    height: 58px;
+    margin: -29px 0 0 -29px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #7fb6cc, #2f5f74);
+    border: 2px solid rgba(200, 235, 255, 0.6);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: transform 0.03s linear;
+    will-change: transform;
+  }
+
+  .control-zone.left  .joystick-knob { box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 18px rgba(249, 115, 75, 0.5); }
+  .control-zone.right .joystick-knob { box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 18px rgba(74, 163, 255, 0.5); }
+
+  /* Кнопка огня */
+  .fire-btn {
+    position: absolute;
+    bottom: 40px;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 1px;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+    touch-action: none;
+    transition: transform 0.06s ease-out, box-shadow 0.06s;
+    border: 3px solid rgba(255, 255, 255, 0.35);
+  }
+
+  .control-zone.left  .fire-btn {
+    right: 22px;
+    background: radial-gradient(circle at 35% 30%, #ff9a72, #a83215);
+    box-shadow: 0 6px 0 #5e1c08, 0 8px 18px rgba(0, 0, 0, 0.6);
+  }
+
+  .control-zone.right .fire-btn {
+    left: 22px;
+    background: radial-gradient(circle at 35% 30%, #7cc4ff, #1857a0);
+    box-shadow: 0 6px 0 #0d335f, 0 8px 18px rgba(0, 0, 0, 0.6);
+  }
+
+  .fire-btn.pressed {
+    transform: translateY(5px) scale(0.97);
+  }
+
+  .control-zone.left  .fire-btn.pressed { box-shadow: 0 1px 0 #5e1c08, 0 8px 18px rgba(0,0,0,0.6); }
+  .control-zone.right .fire-btn.pressed { box-shadow: 0 1px 0 #0d335f, 0 8px 18px rgba(0,0,0,0.6); }
+
+  /* Кнопка пауза/сброс */
+  .top-btn {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    background: rgba(30, 60, 75, 0.9);
+    border: 1.5px solid #5f8b9c;
+    color: #dcf1ff;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    pointer-events: auto;
+    letter-spacing: 0.5px;
+  }
+
+  /* Оверлей победы */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 12, 16, 0.82);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .overlay.show { display: flex; }
+
+  .overlay h1 {
+    font-size: 30px;
+    margin: 0 0 8px;
+    text-shadow: 0 3px 10px black;
+  }
+
+  .overlay p {
+    font-size: 16px;
+    color: #b8dcec;
+    margin: 0 0 26px;
+  }
+
+  .overlay button {
+    background: linear-gradient(180deg, #4a86a0, #2b5a70);
+    border: 2px solid #8dc6dd;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 800;
+    padding: 14px 40px;
+    border-radius: 40px;
+    box-shadow: 0 6px 0 #16323f, 0 10px 24px black;
+    letter-spacing: 1px;
+    pointer-events: auto;
+  }
+
+  .overlay button:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #16323f, 0 10px 24px black;
+  }
+
+  /* Стартовый экран с правилами */
+  .start-screen .rules {
+    max-width: 420px;
+    background: rgba(20, 40, 50, 0.75);
+    border: 1.5px solid #3f7183;
+    border-radius: 18px;
+    padding: 16px 18px;
+    margin-bottom: 26px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #cfe9f7;
+    text-align: left;
+  }
+
+  .start-screen .rules b.p1 { color: #ff9a72; }
+  .start-screen .rules b.p2 { color: #7cc4ff; }
+</style>
 </head>
 <body>
 
-    <canvas id="canvas"></canvas>
+<div id="game">
+  <canvas id="gameCanvas"></canvas>
 
-    <!-- Управление Игрока 1 (Синий) -->
-    <div id="joy1" class="joystick-zone"><div class="stick"></div></div>
-    <div id="fire1" class="shoot-btn">огонь</div>
+  <!-- HUD со здоровьем -->
+  <div class="hud">
+    <div class="hp-box">
+      <span style="color:#ff9a72;">🔴 P1</span>
+      <div class="hp-bar"><div class="hp-fill p1" id="hpFill1"></div></div>
+    </div>
+    <div class="hp-box">
+      <div class="hp-bar"><div class="hp-fill p2" id="hpFill2"></div></div>
+      <span style="color:#7cc4ff;">P2 🔵</span>
+    </div>
+  </div>
 
-    <!-- Управление Игрока 2 (Красный) -->
-    <div id="joy2" class="joystick-zone"><div class="stick"></div></div>
-    <div id="fire2" class="shoot-btn">огонь</div>
+  <!-- Кнопка новой игры -->
+  <button class="top-btn" id="resetBtn">↻ заново</button>
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+  <!-- Сенсорное управление -->
+  <div class="controls-layer">
+    <!-- ЛЕВАЯ ЗОНА (Игрок 1) -->
+    <div class="control-zone left" id="zoneLeft">
+      <div class="joystick" id="joyLeft">
+        <div class="joystick-knob" id="knobLeft"></div>
+      </div>
+      <div class="fire-btn" id="fireLeft">ОГОНЬ</div>
+    </div>
 
-        // Адаптация под размеры экрана
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+    <!-- ПРАВАЯ ЗОНА (Игрок 2) -->
+    <div class="control-zone right" id="zoneRight">
+      <div class="joystick" id="joyRight">
+        <div class="joystick-knob" id="knobRight"></div>
+      </div>
+      <div class="fire-btn" id="fireRight">ОГОНЬ</div>
+    </div>
+  </div>
+
+  <!-- Оверлей окончания игры -->
+  <div class="overlay" id="gameOverlay">
+    <h1 id="overlayTitle">Победа!</h1>
+    <p id="overlaySub">Игра окончена</p>
+    <button id="overlayBtn">ИГРАТЬ СНОВА</button>
+  </div>
+
+  <!-- Стартовый экран -->
+  <div class="overlay start-screen show" id="startOverlay">
+    <h1>🚀 qwerty100000</h1>
+    <div class="rules">
+      <b class="p1">🔴 Игрок 1 (слева):</b> джойстик слева — движение, кнопка «ОГОНЬ» справа — выстрел.<br><br>
+      <b class="p2">🔵 Игрок 2 (справа):</b> джойстик справа — движение, кнопка «ОГОНЬ» слева — выстрел.<br><br>
+      🎯 Башня целится в противника автоматически. 5 попаданий — победа!
+    </div>
+    <button id="startBtn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== КОНСТАНТЫ =====
+  const TANK_RADIUS = 24;
+  const BULLET_RADIUS = 6;
+  const BULLET_SPEED = 5.4;
+  const MAX_HP = 100;
+  const DAMAGE = 22;
+  const COOLDOWN_MAX = 18;
+  const MOVE_SPEED = 3.2;
+
+  // ===== CANVAS =====
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let W = 0, H = 0;
+  let dpr = 1;
+  let MIN_X, MAX_X, MIN_Y, MAX_Y;
+
+  function resizeCanvas() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Обновляем границы для танков
+    MIN_X = TANK_RADIUS + 4;
+    MAX_X = W - TANK_RADIUS - 4;
+    MIN_Y = TANK_RADIUS + 60; // под HUD
+    MAX_Y = H - TANK_RADIUS - 4;
+
+    // Если танки уже существуют — не даём им вылететь
+    if (tanks) {
+      for (const t of tanks) {
+        t.x = Math.min(MAX_X, Math.max(MIN_X, t.x));
+        t.y = Math.min(MAX_Y, Math.max(MIN_Y, t.y));
+      }
+    }
+  }
+
+  // ===== КЛАСС ТАНКА =====
+  class Tank {
+    constructor(x, y, colors) {
+      this.x = x;
+      this.y = y;
+      this.radius = TANK_RADIUS;
+      this.color = colors;
+      this.hp = MAX_HP;
+      this.cooldown = 0;
+      this.turretAngle = 0;
+      // вектор движения, задаваемый джойстиком (-1..1)
+      this.moveX = 0;
+      this.moveY = 0;
+      // флаг желания стрелять
+      this.wantShoot = false;
+      this.hitFlash = 0;
+    }
+
+    update(enemy) {
+      // Движение по вектору джойстика
+      let dx = this.moveX * MOVE_SPEED;
+      let dy = this.moveY * MOVE_SPEED;
+      // Ограничиваем длину вектора единицей (джойстик это уже делает)
+      this.x = Math.min(MAX_X, Math.max(MIN_X, this.x + dx));
+      this.y = Math.min(MAX_Y, Math.max(MIN_Y, this.y + dy));
+
+      // Перезарядка
+      if (this.cooldown > 0) this.cooldown--;
+      if (this.hitFlash > 0) this.hitFlash--;
+
+      // Наведение башни на противника
+      if (enemy) {
+        this.turretAngle = Math.atan2(enemy.y - this.y, enemy.x - this.x);
+      }
+
+      // Стрельба
+      if (this.wantShoot && this.cooldown <= 0) {
+        this.shoot(bullets);
+      }
+    }
+
+    shoot(bulletArr) {
+      if (this.cooldown > 0) return;
+      this.cooldown = COOLDOWN_MAX;
+
+      const dirX = Math.cos(this.turretAngle);
+      const dirY = Math.sin(this.turretAngle);
+      const startX = this.x + dirX * (this.radius + 8);
+      const startY = this.y + dirY * (this.radius + 8);
+
+      bulletArr.push({
+        x: startX,
+        y: startY,
+        vx: dirX * BULLET_SPEED,
+        vy: dirY * BULLET_SPEED,
+        owner: this,
+        radius: BULLET_RADIUS
+      });
+    }
+
+    draw(c) {
+      const { x, y, radius } = this;
+
+      // Вспышка при попадании
+      if (this.hitFlash > 0) {
+        c.beginPath();
+        c.arc(x, y, radius + 8, 0, Math.PI * 2);
+        c.fillStyle = `rgba(255,255,255,${this.hitFlash / 12 * 0.7})`;
+        c.fill();
+      }
+
+      // Корпус
+      const grad = c.createRadialGradient(x - 8, y - 8, 4, x, y, radius + 4);
+      grad.addColorStop(0, this.color.light);
+      grad.addColorStop(0.85, this.color.dark);
+      c.beginPath();
+      c.arc(x, y, radius, 0, Math.PI * 2);
+      c.fillStyle = grad;
+      c.shadowColor = 'rgba(0,0,0,0.55)';
+      c.shadowBlur = 10;
+      c.fill();
+      c.shadowBlur = 0;
+      c.strokeStyle = 'rgba(255,255,255,0.25)';
+      c.lineWidth = 2.5;
+      c.stroke();
+
+      // Гусеницы-декор (полоски по бокам от направления башни)
+      c.save();
+      c.translate(x, y);
+      c.rotate(this.turretAngle + Math.PI / 2);
+      c.strokeStyle = 'rgba(0,0,0,0.35)';
+      c.lineWidth = 3;
+      for (let i = -1; i <= 1; i++) {
+        c.beginPath();
+        c.moveTo(i * 12, -radius + 3);
+        c.lineTo(i * 12, radius - 3);
+        c.stroke();
+      }
+      c.restore();
+
+      // Башня
+      const dirX = Math.cos(this.turretAngle);
+      const dirY = Math.sin(this.turretAngle);
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x + dirX * (radius + 16), y + dirY * (radius + 16));
+      c.lineWidth = 11;
+      c.lineCap = 'round';
+      c.strokeStyle = '#1e2f38';
+      c.stroke();
+      c.lineWidth = 5;
+      c.strokeStyle = this.color.light;
+      c.stroke();
+
+      // Блик
+      c.beginPath();
+      c.arc(x - 7, y - 7, 5.5, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(255,255,255,0.22)';
+      c.fill();
+
+      // Индикатор перезарядки
+      if (this.cooldown > 0) {
+        const percent = 1 - this.cooldown / COOLDOWN_MAX;
+        c.beginPath();
+        c.arc(x, y, radius + 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * percent);
+        c.strokeStyle = 'rgba(255, 220, 100, 0.9)';
+        c.lineWidth = 3.5;
+        c.stroke();
+      }
+    }
+  }
+
+  // ===== СОСТОЯНИЕ ИГРЫ =====
+  let tanks = null;
+  let bullets = [];
+  let gameOver = false;
+  let gameRunning = false;
+  let winnerMessage = '';
+  let winnerColor = '#fff';
+
+  function createTanks() {
+    return [
+      new Tank(W * 0.22, H * 0.5, { light: '#f9734b', dark: '#a8371a' }), // красный
+      new Tank(W * 0.78, H * 0.5, { light: '#4aa3ff', dark: '#1b5aa0' })  // синий
+    ];
+  }
+
+  function circlesCollide(x1, y1, r1, x2, y2, r2) {
+    const dx = x1 - x2, dy = y1 - y2;
+    return dx * dx + dy * dy < (r1 + r2) * (r1 + r2);
+  }
+
+  // ===== УПРАВЛЕНИЕ ДЖОЙСТИКОМ =====
+  // Каждый джойстик привязывается к своему танку (index 0 или 1)
+  function setupJoystick(joyEl, knobEl, tankIndex) {
+    let activePointerId = null;
+    let centerX = 0, centerY = 0;
+    const maxDist = 42;
+
+    function getCenter() {
+      const r = joyEl.getBoundingClientRect();
+      centerX = r.left + r.width / 2;
+      centerY = r.top + r.height / 2;
+      return { cx: centerX, cy: centerY, radius: r.width / 2 };
+    }
+
+    function updateKnob(dx, dy) {
+      knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    }
+
+    function handleStart(e) {
+      if (!gameRunning) return;
+      if (activePointerId !== null) return;
+      const touch = e.changedTouches ? e.changedTouches[0] : e;
+      activePointerId = touch.identifier !== undefined ? touch.identifier : 'mouse';
+      getCenter();
+
+      // Сразу можно переместить кнопку к точке касания, но проще — обновить позицию
+      handleMove(e);
+    }
+
+    function handleMove(e) {
+      if (activePointerId === null) return;
+
+      let touch = null;
+      if (e.changedTouches) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activePointerId) {
+            touch = e.changedTouches[i];
+            break;
+          }
         }
-        window.addEventListener('resize', resize);
-        resize();
+        if (!touch) return;
+      } else {
+        // mouse
+        if (activePointerId !== 'mouse') return;
+        touch = e;
+      }
 
-        // Класс игрока
-        class Player {
-            constructor(x, y, color, angle) {
-                this.x = x;
-                this.y = y;
-                this.radius = 20;
-                this.color = color;
-                this.speed = 4;
-                this.angle = angle;
-                this.hp = 100;
-                this.moveDir = { x: 0, y: 0 };
-                this.lastShot = 0;
-            }
+      e.preventDefault();
 
-            draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.rotate(this.angle);
+      const r = joyEl.getBoundingClientRect();
+      centerX = r.left + r.width / 2;
+      centerY = r.top + r.height / 2;
 
-                // Тело танка/игрока
-                ctx.beginPath();
-                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.closePath();
+      let dx = touch.clientX - centerX;
+      let dy = touch.clientY - centerY;
+      const dist = Math.hypot(dx, dy);
 
-                // Дуло (направление выстрела)
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, -4, this.radius + 10, 8);
+      if (dist > maxDist) {
+        dx = dx / dist * maxDist;
+        dy = dy / dist * maxDist;
+      }
 
-                ctx.restore();
+      updateKnob(dx, dy);
 
-                // Полоска здоровья
-                ctx.fillStyle = '#ff0000';
-                ctx.fillRect(this.x - 25, this.y - 35, 50, 6);
-                ctx.fillStyle = '#00ff00';
-                ctx.fillRect(this.x - 25, this.y - 35, (this.hp / 100) * 50, 6);
-            }
+      // Нормализуем в диапазон -1..1
+      const nx = dx / maxDist;
+      const ny = dy / maxDist;
+      // «Мёртвая зона» для мелких отклонений
+      const deadZone = 0.12;
+      const mag = Math.hypot(nx, ny);
+      if (mag < deadZone) {
+        tanks[tankIndex].moveX = 0;
+        tanks[tankIndex].moveY = 0;
+      } else {
+        tanks[tankIndex].moveX = nx;
+        tanks[tankIndex].moveY = ny;
+      }
+    }
 
-            update() {
-                this.x += this.moveDir.x * this.speed;
-                this.y += this.moveDir.y * this.speed;
+    function handleEnd(e) {
+      if (activePointerId === null) return;
 
-                // Ограничение движения границами экрана
-                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
-                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
-
-                // Поворот персонажа в сторону движения
-                if (this.moveDir.x !== 0 || this.moveDir.y !== 0) {
-                    this.angle = Math.atan2(this.moveDir.y, this.moveDir.x);
-                }
-            }
+      let matches = false;
+      if (e.changedTouches) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activePointerId) {
+            matches = true;
+            break;
+          }
         }
+      } else {
+        if (activePointerId === 'mouse') matches = true;
+      }
 
-        // Класс пули
-        class Bullet {
-            constructor(x, y, angle, color) {
-                this.x = x;
-                this.y = y;
-                this.speed = 7;
-                this.dx = Math.cos(angle) * this.speed;
-                this.dy = Math.sin(angle) * this.speed;
-                this.radius = 5;
-                this.color = color;
-            }
+      if (!matches) return;
+      activePointerId = null;
+      updateKnob(0, 0);
+      if (tanks && tanks[tankIndex]) {
+        tanks[tankIndex].moveX = 0;
+        tanks[tankIndex].moveY = 0;
+      }
+    }
 
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.closePath();
-            }
+    joyEl.addEventListener('touchstart', handleStart, { passive: false });
+    joyEl.addEventListener('touchmove', handleMove, { passive: false });
+    joyEl.addEventListener('touchend', handleEnd, { passive: false });
+    joyEl.addEventListener('touchcancel', handleEnd, { passive: false });
 
-            update() {
-                this.x += this.dx;
-                this.y += this.dy;
-            }
+    // Mouse (для отладки на ПК)
+    joyEl.addEventListener('mousedown', handleStart);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+  }
+
+  // ===== КНОПКА ОГНЯ =====
+  function setupFireButton(btnEl, tankIndex) {
+    let activePointerId = null;
+
+    function press(e) {
+      if (!gameRunning) return;
+      e.preventDefault();
+      if (activePointerId !== null) return;
+      const touch = e.changedTouches ? e.changedTouches[0] : e;
+      activePointerId = touch.identifier !== undefined ? touch.identifier : 'mouse';
+      btnEl.classList.add('pressed');
+      if (tanks && tanks[tankIndex]) {
+        tanks[tankIndex].wantShoot = true;
+      }
+    }
+
+    function release(e) {
+      if (activePointerId === null) return;
+
+      let matches = false;
+      if (e.changedTouches) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activePointerId) {
+            matches = true;
+            break;
+          }
         }
+      } else {
+        if (activePointerId === 'mouse') matches = true;
+      }
 
-        // Инициализация игроков
-        const p1 = new Player(100, canvas.height / 2, '#3296ff', 0);
-        const p2 = new Player(canvas.width - 100, canvas.height / 2, '#ff3232', Math.PI);
-        const bullets = [];
+      if (!matches) return;
+      activePointerId = null;
+      btnEl.classList.remove('pressed');
+      if (tanks && tanks[tankIndex]) {
+        tanks[tankIndex].wantShoot = false;
+      }
+    }
 
-        // Функция стрельбы
-        function shoot(player) {
-            const now = Date.now();
-            if (now - player.lastShot > 300 && player.hp > 0) { // Перезарядка 300мс
-                bullets.push(new Bullet(player.x + Math.cos(player.angle)*25, player.y + Math.sin(player.angle)*25, player.angle, player.color));
-                player.lastShot = now;
+    btnEl.addEventListener('touchstart', press, { passive: false });
+    btnEl.addEventListener('touchend', release, { passive: false });
+    btnEl.addEventListener('touchcancel', release, { passive: false });
+    btnEl.addEventListener('mousedown', press);
+    window.addEventListener('mouseup', release);
+  }
+
+  // ===== HUD =====
+  const hpFill1 = document.getElementById('hpFill1');
+  const hpFill2 = document.getElementById('hpFill2');
+
+  function updateHUD() {
+    if (!tanks) return;
+    hpFill1.style.width = Math.max(0, tanks[0].hp / MAX_HP * 100) + '%';
+    hpFill2.style.width = Math.max(0, tanks[1].hp / MAX_HP * 100) + '%';
+  }
+
+  // ===== ОВЕРЛЕИ =====
+  const gameOverlay = document.getElementById('gameOverlay');
+  const startOverlay = document.getElementById('startOverlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    startOverlay.classList.remove('show');
+    startGame();
+  });
+
+  document.getElementById('overlayBtn').addEventListener('click', () => {
+    gameOverlay.classList.remove('show');
+    startGame();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    gameOverlay.classList.remove('show');
+    startGame();
+  });
+
+  // ===== ИГРОВОЙ ЦИКЛ =====
+  function startGame() {
+    resizeCanvas();
+    tanks = createTanks();
+    bullets = [];
+    gameOver = false;
+    gameRunning = true;
+    winnerMessage = '';
+    updateHUD();
+
+    // Сбросим позиции джойстиков
+    document.getElementById('knobLeft').style.transform = 'translate(0px, 0px)';
+    document.getElementById('knobRight').style.transform = 'translate(0px, 0px)';
+  }
+
+  function endGame(msg, color) {
+    gameOver = true;
+    gameRunning = false;
+    winnerMessage = msg;
+    winnerColor = color || '#fff';
+    overlayTitle.textContent = msg;
+    overlayTitle.style.color = color || '#fff';
+    overlaySub.textContent = 'Нажмите кнопку, чтобы начать новую игру';
+    gameOverlay.classList.add('show');
+
+    // Останавливаем танки
+    if (tanks) {
+      for (const t of tanks) {
+        t.moveX = 0;
+        t.moveY = 0;
+        t.wantShoot = false;
+      }
+    }
+  }
+
+  function update() {
+    if (!gameRunning) return;
+
+    // Обновление танков
+    tanks[0].update(tanks[1]);
+    tanks[1].update(tanks[0]);
+
+    // Пули
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.x += b.vx;
+      b.y += b.vy;
+
+      // Выход за границы
+      if (b.x < -30 || b.x > W + 30 || b.y < -30 || b.y > H + 30) {
+        bullets.splice(i, 1);
+        continue;
+      }
+
+      let hit = false;
+      for (let j = 0; j < tanks.length; j++) {
+        const t = tanks[j];
+        if (t === b.owner) continue;
+
+        if (circlesCollide(b.x, b.y, b.radius, t.x, t.y, t.radius)) {
+          t.hp = Math.max(0, t.hp - DAMAGE);
+          t.hitFlash = 12;
+          updateHUD();
+          hit = true;
+
+          if (t.hp <= 0) {
+            const winnerIdx = (j === 0) ? 1 : 0;
+            if (winnerIdx === 0) {
+              endGame('🔴 Игрок 1 побеждает!', '#ff9a72');
+            } else {
+              endGame('🔵 Игрок 2 побеждает!', '#7cc4ff');
             }
+          }
+          break;
         }
+      }
 
-        // Настройка тач-джойстиков
-        function setupJoystick(joyId, player) {
-            const joy = document.getElementById(joyId);
-            const stick = joy.querySelector('.stick');
-            const rect = joy.getBoundingClientRect();
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
+      if (hit) bullets.splice(i, 1);
+    }
+  }
 
-            function handleTouch(e) {
-                e.preventDefault();
-                const touch = e.touches[0];
-                const joyRect = joy.getBoundingClientRect();
-                let touchX = touch.clientX - joyRect.left - centerX;
-                let touchY = touch.clientY - joyRect.top - centerY;
+  function draw() {
+    if (!tanks) return;
 
-                const distance = Math.min(centerX, Math.sqrt(touchX*touchX + touchY*touchY));
-                const angle = Math.atan2(touchY, touchX);
+    // Фон
+    ctx.fillStyle = '#20323c';
+    ctx.fillRect(0, 0, W, H);
 
-                const moveX = (distance / centerX) * Math.cos(angle);
-                const moveY = (distance / centerX) * Math.sin(angle);
+    // Сетка
+    ctx.strokeStyle = '#2f4a55';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.35;
+    const gridSize = 45;
+    for (let x = 0; x < W; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let y = 0; y < H; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
 
-                stick.style.transform = `translate(${moveX * 30}px, ${moveY * 30}px)`;
-                player.moveDir = { x: moveX, y: moveY };
-            }
+    // Центральная линия
+    ctx.beginPath();
+    ctx.setLineDash([12, 20]);
+    ctx.strokeStyle = '#3d6677';
+    ctx.lineWidth = 4;
+    ctx.moveTo(W / 2, 30);
+    ctx.lineTo(W / 2, H - 30);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-            joy.addEventListener('touchstart', handleTouch);
-            joy.addEventListener('touchmove', handleTouch);
-            joy.addEventListener('touchend', () => {
-                stick.style.transform = 'translate(0px, 0px)';
-                player.moveDir = { x: 0, y: 0 };
-            });
-        }
+    // Пули
+    for (const b of bullets) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.shadowColor = '#f0e68c';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = '#ffe066';
+      ctx.fill();
+      ctx.shadowBlur = 0;
 
-        // Подключаем управление
-        setupJoystick('joy1', p1);
-        setupJoystick('joy2', p2);
+      ctx.beginPath();
+      ctx.arc(b.x - 2, b.y - 2, b.radius * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff9c4';
+      ctx.fill();
+    }
 
-        document.getElementById('fire1').addEventListener('touchstart', (e) => { e.preventDefault(); shoot(p1); });
-        document.getElementById('fire2').addEventListener('touchstart', (e) => { e.preventDefault(); shoot(p2); });
+    // Танки
+    for (const t of tanks) {
+      t.draw(ctx);
+    }
+  }
 
-        // Проверка столкновений окружностей
-        function getDistance(x1, y1, x2, y2) {
-            return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-        }
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
 
-        // Главный игровой цикл
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // ===== ИНИЦИАЛИЗАЦИЯ =====
+  // Настраиваем управление (индексы танков: 0 — левый/красный, 1 — правый/синий)
+  setupJoystick(
+    document.getElementById('joyLeft'),
+    document.getElementById('knobLeft'),
+    0
+  );
+  setupJoystick(
+    document.getElementById('joyRight'),
+    document.getElementById('knobRight'),
+    1
+  );
+  setupFireButton(document.getElementById('fireLeft'), 0);
+  setupFireButton(document.getElementById('fireRight'), 1);
 
-            // Обновление и отрисовка игроков
-            if (p1.hp > 0) { p1.update(); p1.draw(); }
-            if (p2.hp > 0) { p2.update(); p2.draw(); }
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(resizeCanvas, 120);
+  });
 
-            // Логика пуль
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                const b = bullets[i];
-                b.update();
-                b.draw();
+  // Первичная инициализация размеров (без запуска игры)
+  resizeCanvas();
 
-                // Проверка попадания пули Синего в Красного
-                if (b.color === p1.color && p2.hp > 0 && getDistance(b.x, b.y, p2.x, p2.y) < p2.radius + b.radius) {
-                    p2.hp -= 10;
-                    bullets.splice(i, 1);
-                    continue;
-                }
-
-                // Проверка попадания пули Красного в Синего
-                if (b.color === p2.color && p1.hp > 0 && getDistance(b.x, b.y, p1.x, p1.y) < p1.radius + b.radius) {
-                    p1.hp -= 10;
-                    bullets.splice(i, 1);
-                    continue;
-                }
-
-                // Удаление пуль за экраном
-                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-                    bullets.splice(i, 1);
-                }
-            }
-
-            // Конец игры
-            if (p1.hp <= 0 || p2.hp <= 0) {
-                ctx.fillStyle = 'white';
-                ctx.font = '30px Arial';
-                ctx.textAlign = 'center';
-                const winner = p1.hp <= 0 ? 'Красный Игрок' : 'Синий Игрок';
-                ctx.fillText(`${winner} Победил!`, canvas.width / 2, canvas.height / 2);
-                ctx.font = '20px Arial';
-                ctx.fillText('Обновите страницу для перезапуска', canvas.width / 2, canvas.height / 2 + 40);
-            }
-
-            requestAnimationFrame(gameLoop);
-        }
-
-        gameLoop();
-    </script>
+  // Запускаем цикл отрисовки сразу (чтобы фон был готов к старту)
+  // Но танки появятся только после startGame()
+  function bootLoop() {
+    // Если игра не запущена — рисуем пустой фон
+    if (!tanks) {
+      ctx.fillStyle = '#20323c';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#2f4a55';
+      ctx.globalAlpha = 0.3;
+      for (let x = 0; x < W; x += 45) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 45) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(bootLoop);
+      return;
+    }
+    update();
+    draw();
+    requestAnimationFrame(bootLoop);
+  }
+  bootLoop();
+})();
+</script>
 </body>
-</html>
+    </html>
